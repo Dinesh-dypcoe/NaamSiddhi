@@ -6,9 +6,10 @@ if(process.env.NODE_ENV != "PRODUCTION"){
 const express = require('express');
 const app = express();
 const mongoose = require('mongoose');
-const profileSchema =require("./model/profileSchema");
+const profileSchema =require("./models/profileSchema");
 
-const port = 3000;
+const dbURL = process.env.MONGO_URL
+const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log(`listening on port: ${port}`);
 });
@@ -20,7 +21,7 @@ main().then(() => {
 }).catch(err => console.log(err));
 
 async function main() {
-    await mongoose.connect(process.env.LOCAL_DB);
+    await mongoose.connect(process.env.MONGO_URL);
 }
 
 app.get("/",(req,res)=>{
