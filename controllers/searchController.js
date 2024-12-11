@@ -1,11 +1,10 @@
 const Profile = require('../models/profileSchema');
 const { getSoundex } = require('../utils/soundex');
+const { 
+    detectHindiScript, 
+    transliterateToEnglish 
+} = require('../utils/translator');
 const { calculateMatchPercentage } = require('../utils/levenshtein');
-
-// Helper function to detect Hindi text
-function isHindi(text) {
-    return /[\u0900-\u097F]/.test(text);
-}
 
 module.exports.searchRecord = (req, res) => {
     res.render('records/search.ejs', { profiles: null });
@@ -13,166 +12,230 @@ module.exports.searchRecord = (req, res) => {
 
 module.exports.resultRecord = async (req, res) => {
     try {
-        const searchCriteria = req.body;
-        let query = {};
+        const { firstName, lastName, dob, gender, role, address, appearance, mNumber, occupation } = req.body;
+        let conditions = [];
 
-        // Define parameter groups
-        const parameterGroups = {
+        // Define weights for different attributes
+        const weights = {
+            // Primary identifiers (35% total)
             name: {
-                fields: ['firstName', 'lastName'],
-                weight: 30,
-                provided: 0
+                firstName: 0.22,     // 22% for first name (reduced from 30%)
+                lastName: 0.16       // 16% for last name (reduced from 20%)
             },
-            physical: {
-                fields: ['appearance.height', 'appearance.weight', 'appearance.complexion', 'appearance.build'],
-                weight: 25,
-                provided: 0
+            
+            // Secondary identifiers (45% total)
+            personal: {
+                gender: 0.05,        // 10% for gender
+                dob: 0.15,          // 10% for date of birth        // 10% for role
+                mNumber: 0.15,      // 10% for mobile number (new)
+                occupation: 0.10   // 5% for occupation (new)
             },
+            
+            // Location details (10% total)
             address: {
-                fields: ['address.location', 'address.city', 'address.district', 'address.state'],
-                weight: 20,
-                provided: 0
+                district: 0.02,      // 2% for district
+                city: 0.03,         // 3% for city
+                state: 0.02         // 2 %for state
             },
-            basic: {
-                fields: ['gender', 'dob', 'occupation', 'mNumber'],
-                weight: 25,
-                provided: 0
+            
+            // Physical attributes (10% total)
+            appearance: {
+                height: 0.025,       // 2.5% for height
+                weight: 0.025,       // 2.5% for weight
+                complexion: 0.025,   // 2.5% for complexion
+                build: 0.025        // 2.5% for build
             }
         };
 
-        // Extract firstName, lastName, and role from searchCriteria
-        const firstName = searchCriteria.firstName || '';
-        const lastName = searchCriteria.lastName || '';
-        const role = searchCriteria.role || '';
-
-        // Add role to query if provided
-        if (role) {
-            query.role = role;
-        }
-
-        // Build search query
-        let searchQuery = {};
+        // First stage: Soundex-based filtering
+        let soundexQuery = {};
         if (firstName || lastName) {
-            const conditions = [];
-
+            let soundexConditions = [];
+            
             if (firstName) {
-                const firstNameSoundex = getSoundex(firstName, false, false);
-                if (isHindi(firstName)) {
-                    // For Hindi input, prioritize Soundex matching
-                    conditions.push(
-                        { 'soundexCode.firstName': firstNameSoundex },
-                        { 'soundexCode.firstNameHindi': firstNameSoundex },
-                        { firstNameHindi: new RegExp(firstName, 'i') }
-                    );
-                } else {
-                    conditions.push(
-                        { 'soundexCode.firstName': firstNameSoundex },
-                        { firstNameEnglish: new RegExp(firstName, 'i') }
-                    );
+                const isHindiFirst = detectHindiScript(firstName);
+                let firstNameForSearch = firstName;
+                
+                if (isHindiFirst) {
+                    firstNameForSearch = await transliterateToEnglish(firstName, 'name');
                 }
+                
+                const firstNameSoundex = getSoundex(firstNameForSearch, false, false);
+                soundexConditions.push({ 'soundexCode.firstName': firstNameSoundex });
             }
 
             if (lastName) {
-                const lastNameSoundex = getSoundex(lastName, false, false);
-                if (isHindi(lastName)) {
-                    // For Hindi input, prioritize Soundex matching
-                    conditions.push(
-                        { 'soundexCode.lastName': lastNameSoundex },
-                        { 'soundexCode.lastNameHindi': lastNameSoundex },
-                        { lastNameHindi: new RegExp(lastName, 'i') }
-                    );
-                } else {
-                    conditions.push(
-                        { 'soundexCode.lastName': lastNameSoundex },
-                        { lastNameEnglish: new RegExp(lastName, 'i') }
-                    );
+                const isHindiLast = detectHindiScript(lastName);
+                let lastNameForSearch = lastName;
+                
+                if (isHindiLast) {
+                    lastNameForSearch = await transliterateToEnglish(lastName, 'name');
                 }
+                
+                const lastNameSoundex = getSoundex(lastNameForSearch, false, false);
+                soundexConditions.push({ 'soundexCode.lastName': lastNameSoundex });
             }
 
-            if (conditions.length > 0) {
-                // Use $or to match any of the conditions
-                searchQuery.$or = conditions;
-            }
+            // Use $or to match either firstName or lastName Soundex
+            soundexQuery = { $or: soundexConditions };
         }
 
-        // Combine role query with search query
-        if (Object.keys(searchQuery).length > 0) {
-            if (Object.keys(query).length > 0) {
-                // If we have both role and name conditions, use $and to combine them
-                query = {
-                    $and: [
-                        query,
-                        searchQuery
-                    ]
-                };
-            } else {
-                query = searchQuery;
-            }
-        }
+        // Execute first stage search with Soundex
+        const profiles = await Profile.find(soundexQuery);
 
-        // Execute search
-        const profiles = await Profile.find(query);
-
-        // Calculate matches
+        // Calculate weighted match scores for all profiles
         const profilesWithMatches = profiles.map(profile => {
             let totalScore = 0;
-            let totalFields = 0;
+            let scores = {
+                name: { firstName: 0, lastName: 0 },
+                personal: { 
+                    gender: 0, 
+                    dob: 0, 
+                    role: 0,
+                    mNumber: 0,      // Added mobile number
+                    occupation: 0    // Added occupation
+                },
+                address: { district: 0, city: 0, state: 0 },
+                appearance: { height: 0, weight: 0, complexion: 0, build: 0 }
+            };
 
-            // Calculate name match
-            if (firstName || lastName) {
-                let nameScore = 0;
-                let nameFields = 0;
-
-                if (firstName) {
-                    nameFields++;
-                    const isHindiInput = isHindi(firstName);
-                    const fieldToCompare = isHindiInput ? 'firstNameHindi' : 'firstNameEnglish';
-                    nameScore += calculateMatchPercentage(
-                        firstName.toLowerCase(),
-                        (profile[fieldToCompare] || '').toLowerCase()
-                    );
-                }
-
-                if (lastName) {
-                    nameFields++;
-                    const isHindiInput = isHindi(lastName);
-                    const fieldToCompare = isHindiInput ? 'lastNameHindi' : 'lastNameEnglish';
-                    nameScore += calculateMatchPercentage(
-                        lastName.toLowerCase(),
-                        (profile[fieldToCompare] || '').toLowerCase()
-                    );
-                }
-
-                if (nameFields > 0) {
-                    nameScore = nameScore / nameFields;
-                    totalScore += nameScore;
-                    totalFields++;
-                }
+            // Name matching (50%)
+            if (firstName) {
+                const isHindiInput = detectHindiScript(firstName);
+                const fieldToCompare = isHindiInput ? 'firstNameHindi' : 'firstNameEnglish';
+                scores.name.firstName = calculateMatchPercentage(
+                    firstName.toLowerCase(),
+                    (profile[fieldToCompare] || '').toLowerCase()
+                ) * weights.name.firstName;
+                totalScore += scores.name.firstName;
             }
 
-            const finalMatchPercentage = totalFields > 0 ? (totalScore / totalFields) : 0;
+            if (lastName) {
+                const isHindiInput = detectHindiScript(lastName);
+                const fieldToCompare = isHindiInput ? 'lastNameHindi' : 'lastNameEnglish';
+                scores.name.lastName = calculateMatchPercentage(
+                    lastName.toLowerCase(),
+                    (profile[fieldToCompare] || '').toLowerCase()
+                ) * weights.name.lastName;
+                totalScore += scores.name.lastName;
+            }
+
+            // Personal information matching (30%)
+            if (gender) {
+                scores.personal.gender = (profile.gender === gender ? 100 : 0) * weights.personal.gender;
+                totalScore += scores.personal.gender;
+            }
+
+            if (dob) {
+                scores.personal.dob = (profile.dob && profile.dob.toISOString().split('T')[0] === dob ? 100 : 0) 
+                    * weights.personal.dob;
+                totalScore += scores.personal.dob;
+            }
+
+            if (role) {
+                scores.personal.role = (profile.role === role ? 100 : 0) * weights.personal.role;
+                totalScore += scores.personal.role;
+            }
+
+            if (mNumber) {
+                scores.personal.mNumber = (profile.mNumber === mNumber ? 100 : 0) * weights.personal.mNumber;
+                totalScore += scores.personal.mNumber;
+            }
+
+            if (occupation) {
+                const isHindiInput = detectHindiScript(occupation);
+                const fieldToCompare = isHindiInput ? 'occupationHindi' : 'occupationEnglish';
+                scores.personal.occupation = calculateMatchPercentage(
+                    occupation.toLowerCase(),
+                    (profile[fieldToCompare] || '').toLowerCase()
+                ) * weights.personal.occupation;
+                totalScore += scores.personal.occupation;
+            }
+
+            // Address matching (10%)
+            if (address) {
+                ['district', 'city', 'state'].forEach(component => {
+                    if (address[component]) {
+                        const isHindi = detectHindiScript(address[component]);
+                        const field = isHindi ? `${component}Hindi` : `${component}English`;
+                        scores.address[component] = calculateMatchPercentage(
+                            address[component].toLowerCase(),
+                            (profile.address[field] || '').toLowerCase()
+                        ) * weights.address[component];
+                        totalScore += scores.address[component];
+                    }
+                });
+            }
+
+            // Appearance matching (10%)
+            if (appearance) {
+                if (appearance.height) {
+                    const heightDiff = Math.abs(profile.appearance?.height - appearance.height);
+                    scores.appearance.height = (heightDiff <= 5 ? (100 - heightDiff * 20) : 0) 
+                        * weights.appearance.height;
+                    totalScore += scores.appearance.height;
+                }
+
+                if (appearance.weight) {
+                    const weightDiff = Math.abs(profile.appearance?.weight - appearance.weight);
+                    scores.appearance.weight = (weightDiff <= 5 ? (100 - weightDiff * 20) : 0) 
+                        * weights.appearance.weight;
+                    totalScore += scores.appearance.weight;
+                }
+
+                if (appearance.complexion) {
+                    scores.appearance.complexion = (profile.appearance?.complexion === appearance.complexion ? 100 : 0) 
+                        * weights.appearance.complexion;
+                    totalScore += scores.appearance.complexion;
+                }
+
+                if (appearance.build) {
+                    scores.appearance.build = (profile.appearance?.build === appearance.build ? 100 : 0) 
+                        * weights.appearance.build;
+                    totalScore += scores.appearance.build;
+                }
+            }
 
             return {
                 ...profile.toObject(),
-                matchPercentage: finalMatchPercentage.toFixed(2)
+                matchPercentage: parseFloat(totalScore.toFixed(2)),
+                scores: {
+                    name: {
+                        firstName: parseFloat(scores.name.firstName.toFixed(2)),
+                        lastName: parseFloat(scores.name.lastName.toFixed(2))
+                    },
+                    personal: {
+                        gender: parseFloat(scores.personal.gender.toFixed(2)),
+                        dob: parseFloat(scores.personal.dob.toFixed(2)),
+                        role: parseFloat(scores.personal.role.toFixed(2)),
+                        mNumber: parseFloat(scores.personal.mNumber.toFixed(2)),      // Added
+                        occupation: parseFloat(scores.personal.occupation.toFixed(2)) // Added
+                    },
+                    address: {
+                        district: parseFloat(scores.address.district.toFixed(2)),
+                        city: parseFloat(scores.address.city.toFixed(2)),
+                        state: parseFloat(scores.address.state.toFixed(2))
+                    },
+                    appearance: {
+                        height: parseFloat(scores.appearance.height.toFixed(2)),
+                        weight: parseFloat(scores.appearance.weight.toFixed(2)),
+                        complexion: parseFloat(scores.appearance.complexion.toFixed(2)),
+                        build: parseFloat(scores.appearance.build.toFixed(2))
+                    }
+                }
             };
         });
 
-        // Filter and sort results
-        const minMatchPercentage = 30;
-        const sortedProfiles = profilesWithMatches
-            .filter(profile => profile.matchPercentage >= minMatchPercentage)
-            .sort((a, b) => b.matchPercentage - a.matchPercentage);
+        // Sort all profiles by match percentage
+        const sortedProfiles = profilesWithMatches.sort((a, b) => b.matchPercentage - a.matchPercentage);
 
         res.render('records/search.ejs', { 
             profiles: sortedProfiles,
-            searchParams: {
-                provided: Object.keys(searchCriteria).length,
-                total: Object.values(parameterGroups).reduce((acc, group) => acc + group.fields.length, 0)
-            }
+            searchParams: req.body
         });
-    } catch (error) {
-        console.error('Error searching profiles:', error);
+
+    } catch (err) {
+        console.error('Error searching profiles:', err);
         req.flash('error', 'An error occurred while searching profiles');
         res.redirect('/search');
     }
@@ -185,7 +248,7 @@ module.exports.getSuggestions = async (req, res) => {
             return res.json([]);
         }
 
-        const isHindiQuery = isHindi(query);
+        const isHindiQuery = containsHindi(query);
         let searchField = type === 'firstName' ? 
             (isHindiQuery ? 'firstNameHindi' : 'firstNameEnglish') : 
             (isHindiQuery ? 'lastNameHindi' : 'lastNameEnglish');
@@ -210,10 +273,15 @@ module.exports.searchCases = async (req, res) => {
         
         let searchQuery = {};
         if (query) {
+            const isHindiQuery = containsHindi(query);
             searchQuery.$or = [
                 { caseNumber: new RegExp(query, 'i') },
-                { 'description.english': new RegExp(query, 'i') },
-                { 'location.district.english': new RegExp(query, 'i') }
+                isHindiQuery ? 
+                    { 'description.hindi': new RegExp(query, 'i') } :
+                    { 'description.english': new RegExp(query, 'i') },
+                isHindiQuery ?
+                    { 'location.district.hindi': new RegExp(query, 'i') } :
+                    { 'location.district.english': new RegExp(query, 'i') }
             ];
         }
 
@@ -222,7 +290,6 @@ module.exports.searchCases = async (req, res) => {
             .sort('-createdAt')
             .limit(10);
 
-        // Ensure proper JSON response
         res.setHeader('Content-Type', 'application/json');
         return res.json({ cases });
     } catch (error) {

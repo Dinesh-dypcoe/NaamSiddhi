@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const Profile = require('../models/profileSchema'); 
+const Profile = require('../models/profileSchema');
+const Case = require('../models/caseSchema');
 
-router.get('/api/suggestions', async (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const { query, type } = req.query;
   
@@ -10,34 +11,44 @@ router.get('/api/suggestions', async (req, res) => {
             return res.status(400).json({ error: 'Query parameter is required' });
         }
   
-        const regex = new RegExp(query, 'i'); // Case-insensitive regex for matching
+        const regex = new RegExp(query, 'i');
 
-        let filter = {};
-        if (type === 'firstName') {
-            filter = {
-                $or: [
-                    { 'firstNameEnglish': regex },
-                    { 'firstNameHindi': regex }
-                ]
-            };
-        } else if (type === 'lastName') {
-            filter = {
-                $or: [
-                    { 'lastNameEnglish': regex },
-                    { 'lastNameHindi': regex }
-                ]
-            };
+        let results;
+
+        if (type === 'caseNumber') {
+            // Search for case numbers
+            results = await Case.find({ caseNumber: regex })
+                .select('caseNumber description location')
+                .limit(4);
         } else {
-            return res.status(400).json({ error: 'Invalid type parameter' });
+            // Profile search
+            let filter = {};
+            if (type === 'firstName') {
+                filter = {
+                    $or: [
+                        { 'firstNameEnglish': regex },
+                        { 'firstNameHindi': regex }
+                    ]
+                };
+            } else if (type === 'lastName') {
+                filter = {
+                    $or: [
+                        { 'lastNameEnglish': regex },
+                        { 'lastNameHindi': regex }
+                    ]
+                };
+            } else {
+                return res.status(400).json({ error: 'Invalid type parameter' });
+            }
+
+            results = await Profile.find(filter)
+                .limit(4)
+                .select('firstNameEnglish firstNameHindi lastNameEnglish lastNameHindi');
         }
 
-        const results = await Profile.find(filter)
-            .limit(10)
-            .select('firstNameEnglish firstNameHindi lastNameEnglish lastNameHindi');
-  
         res.json(results);
     } catch (error) {
-        console.error(error);
+        console.error('Error in suggestions route:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

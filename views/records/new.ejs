@@ -4,7 +4,7 @@
     <div class="glass-effect rounded-lg p-8 max-w-4xl mx-auto">
         <h1 class="text-3xl font-nasa text-center mb-8 text-blue-400">Create Profile</h1>
 
-        <form action="/newrecord" method="POST" class="space-y-8">
+        <form action="/newrecord" method="POST" enctype="multipart/form-data" class="space-y-8">
             <!-- Personal Information Section -->
             <div class="space-y-6">
                 <h2 class="text-xl font-nasa text-blue-400/80">Personal Information</h2>
@@ -32,11 +32,22 @@
                                placeholder="Occupation / पेशा"
                                class="w-full bg-space-dark/50 border border-blue-400/30 rounded-md px-4 py-2 focus:outline-none focus:border-blue-400 transition-all text-gray-100">
                     </div>
-                    <div class="space-y-2">
-                        <input type="date" 
+                    <div class="space-y-2 relative">
+                        <input type="text" 
                                name="dob" 
                                required
-                               class="w-full bg-space-dark/50 border border-blue-400/30 rounded-md px-4 py-2 focus:outline-none focus:border-blue-400 transition-all text-gray-100">
+                               placeholder="Date of Birth"
+                               onfocus="(this.type='date');this.showPicker()"
+                               onblur="if(!this.value) this.type='text'"
+                               class="w-full bg-space-dark/50 border border-blue-400/30 rounded-md px-4 py-2 focus:outline-none focus:border-blue-400 transition-all text-gray-100 [&::-webkit-calendar-picker-indicator]:opacity-0"
+                               onclick="this.nextElementSibling.click()">
+                        <input type="button"
+                               class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
+                               onclick="this.previousElementSibling.showPicker()"
+                               style="border:none; background:transparent;">
+                        <svg class="w-5 h-5 text-gray-400 absolute right-3 top-1/3 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
                     </div>
 
                     <!-- Gender & Role -->
@@ -48,6 +59,15 @@
                             <option value="male">Male / पुरुष</option>
                             <option value="female">Female / महिला</option>
                         </select>
+                    </div>
+                    <!-- Phone Number -->
+                    <div class="space-y-2">
+                        <input type="tel" 
+                               name="mNumber" 
+                               placeholder="Phone Number / फ़ोन नंबर"
+                               pattern="[0-9]{10}"
+                               title="Please enter a valid 10-digit phone number"
+                               class="w-full bg-space-dark/50 border border-blue-400/30 rounded-md px-4 py-2 focus:outline-none focus:border-blue-400 transition-all text-gray-100">
                     </div>
                 </div>
             </div>
@@ -148,7 +168,7 @@
               <div class="grid grid-cols-2 gap-4">
                   <input type="number" 
                          name="appearance[height]" 
-                         placeholder="Height (cm) / ऊंचाई"
+                         placeholder="Height (cm) / ऊचाई"
                          class="w-full bg-space-dark/50 border border-blue-400/30 rounded-md px-4 py-2 focus:outline-none focus:border-blue-400 transition-all text-gray-100">
                   
                   <input type="number" 
@@ -162,7 +182,7 @@
                   <option value="" disabled selected>Complexion / रंग</option>
                   <option value="fair">Fair / गोरा</option>
                   <option value="medium">Medium / साँवला</option>
-                  <option value="dark">Dark / काला</option>
+                  <option value="dark">Dark / ाला</option>
               </select>
 
               <select name="appearance[build]"
@@ -178,7 +198,7 @@
 
       <!-- Distinguishing Features -->
       <div class="space-y-4">
-          <h3 class="text-lg font-nasa text-blue-400/60">Distinguishing Features / विशेष हचान</h3>
+          <h3 class="text-lg font-nasa text-blue-400/60">Distinguishing Features / विशेष पहचान</h3>
           <div class="space-y-4">
               <input type="text" 
                      name="appearance[facialFeatures]" 
@@ -203,6 +223,58 @@
       </div>
   </div>
 </div>
+
+            <!-- Profile Images Section -->
+            <div class="space-y-6">
+                <h2 class="text-xl font-nasa text-blue-400/80">Profile Images</h2>
+                <div class="space-y-4">
+                    <!-- Profile Photo -->
+                    <div>
+                        <label class="block text-gray-400 mb-2">Profile Photo</label>
+                        <div class="flex items-center space-x-4">
+                            <div class="relative">
+                                <input type="file" 
+                                       name="profileImage" 
+                                       accept="image/*"
+                                       class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                       onchange="previewImage(this, 'profilePreview')">
+                                <div class="bg-space-dark/50 border-2 border-dashed border-blue-400/30 rounded-lg p-4 text-center">
+                                    <img id="profilePreview" src="" alt="" class="mx-auto max-h-40 hidden">
+                                    <div id="profilePlaceholder" class="text-gray-400">
+                                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                        </svg>
+                                        <p class="mt-1">Click to upload profile photo</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ID Proof -->
+                    <div>
+                        <label class="block text-gray-400 mb-2">ID Proof</label>
+                        <div class="flex items-center space-x-4">
+                            <div class="relative">
+                                <input type="file" 
+                                       name="idProof" 
+                                       accept="image/*"
+                                       class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                       onchange="previewImage(this, 'idPreview')">
+                                <div class="bg-space-dark/50 border-2 border-dashed border-blue-400/30 rounded-lg p-4 text-center">
+                                    <img id="idPreview" src="" alt="" class="mx-auto max-h-40 hidden">
+                                    <div id="idPlaceholder" class="text-gray-400">
+                                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                        </svg>
+                                        <p class="mt-1">Click to upload ID proof</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Submit Button -->
             <div class="flex justify-center pt-6">
@@ -290,7 +362,7 @@
                         required
                         class="w-full bg-space-dark/50 border border-blue-400/30 rounded-md px-4 py-2 focus:outline-none focus:border-blue-400 transition-all text-gray-100">
                     <option value="" disabled selected>Select Role / भूमिका चुनें</option>
-                    <option value="criminal">Criminal / अपराध��</option>
+                    <option value="criminal">Criminal / अपराध</option>
                     <option value="victim">Victim / पीड़ित</option>
                     <option value="witness">Witness / गवाह</option>
                 </select>
@@ -333,4 +405,21 @@
             form.appendChild(hiddenInput);
         }
     });
+
+    function previewImage(input, previewId) {
+        const preview = document.getElementById(previewId);
+        const placeholder = document.getElementById(previewId.replace('Preview', 'Placeholder'));
+        
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                preview.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            }
+            
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
 </script>

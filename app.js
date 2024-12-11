@@ -49,17 +49,12 @@ app.use(methodOverride("_method"));
 app.use(express.static(path.join(__dirname, "public")));
 
 // Session configuration
-const sessionConfig = {
-    secret: process.env.SESSION_SECRET || 'your-secret-key',
+app.use(session({
+    secret: 'your-secret-key',
     resave: false,
     saveUninitialized: true,
-    cookie: {
-        httpOnly: true,
-        expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
-        maxAge: 1000 * 60 * 60 * 24 * 7
-    }
-};
-app.use(session(sessionConfig));
+    cookie: { secure: false } // set to true if using https
+}));
 
 // Flash messages
 app.use(flash());
@@ -80,6 +75,30 @@ app.use((req, res, next) => {
         return res.status(status).json(data);
     };
     next();
+});
+
+// Add middleware to set path for all routes (Move this BEFORE routes)
+app.use((req, res, next) => {
+    res.locals.path = req.path;
+    next();
+});
+
+// API Routes
+app.use('/api/cases', apiCaseRoutes);
+app.use('/api/profiles', apiProfileRoutes);
+app.use('/api/suggestions', suggestionRoutes);
+
+// Web Routes
+app.use("/", dashboardRoute);
+app.use("/search", searchRecord);
+app.use("/newrecord", newRecord);
+app.use("/record", recordRoutes);
+app.use('/cases', caseRoutes);
+app.use('/analytics', analyticsRoutes);
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).render('404');
 });
 
 // Error handling middleware
@@ -105,24 +124,6 @@ const dbURL = process.env.MONGO_URL;
 mongoose.connect(dbURL)
     .then(() => console.log('Connected to MongoDB'))
     .catch(err => console.error('MongoDB connection error:', err));
-
-// API Routes
-app.use('/api/cases', apiCaseRoutes);
-app.use('/api/profiles', apiProfileRoutes);
-
-// Web Routes
-app.use("/", dashboardRoute);
-app.use("/search", searchRecord);
-app.use("/newrecord", newRecord);
-app.use("/record", recordRoutes);
-app.use('/cases', caseRoutes);
-app.use('/analytics', analyticsRoutes);
-app.use('/api/suggestions', suggestionRoutes);
-
-// 404 handler
-app.use((req, res) => {
-    res.status(404).render('404');
-});
 
 // Server startup
 const startServer = (port) => {
