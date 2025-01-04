@@ -43,7 +43,7 @@ By leveraging hybrid algorithms, Naam Siddhi ensures precise name matching, even
 
 ## 🌐 Live Demo
 You can explore the live demo of **Naam Siddhi** here:  
-[**Naam Siddhi - Live Demo**](https://naam-siddhi.vercel.app/) (Link to be updated)
+[**Naam Siddhi - Live Demo**](https://naam-siddhi.vercel.app/)
 
 ## 📄 Documentation
 For detailed usage, setup instructions, and algorithm explanations, visit the [official documentation](#).
