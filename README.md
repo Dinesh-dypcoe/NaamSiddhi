@@ -41,9 +41,11 @@ By leveraging hybrid algorithms, Naam Siddhi ensures precise name matching, even
 - **Voice-to-Text**: Bilingual voice recognition for hands-free interaction and search.
 - **Analytics Dashboard**: Get valuable insights from your records with an interactive dashboard.
 
-## 🌐 Live Demo
+- ## 🌐 Live Demo
 You can explore the live demo of **Naam Siddhi** here:  
 [**Naam Siddhi - Live Demo**](https://naam-siddhi.vercel.app/)
+
+
 
 ## 📄 Documentation
 For detailed usage, setup instructions, and algorithm explanations, visit the [official documentation](#).
