@@ -3,6 +3,10 @@
 **Advanced Police Record Management System**  
 🏆 *Winner of Smart India Hackathon*
 
+- ## 🌐 Live Demo
+You can explore the live demo of **Naam Siddhi** here:  
+[**Naam Siddhi - Live Demo**](https://naam-siddhi.vercel.app/)
+
 ## 📖 Overview
 **Naam Siddhi** is an innovative platform designed to overcome the challenges of name-based search mechanisms, especially in the context of Indian languages. The solution combines **modified Soundex** for Indian languages and **Levenshtein distance** to provide accurate string matching across both **Devanagari** and **Roman scripts**. This advanced system enhances police record management with bilingual support, intuitive search, and robust analytics.
 
@@ -40,10 +44,6 @@ By leveraging hybrid algorithms, Naam Siddhi ensures precise name matching, even
   - Automatically sort profiles by matching scores for quick search results.
 - **Voice-to-Text**: Bilingual voice recognition for hands-free interaction and search.
 - **Analytics Dashboard**: Get valuable insights from your records with an interactive dashboard.
-
-- ## 🌐 Live Demo
-You can explore the live demo of **Naam Siddhi** here:  
-[**Naam Siddhi - Live Demo**](https://naam-siddhi.vercel.app/)
 
 
 
